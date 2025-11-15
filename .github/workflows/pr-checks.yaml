@@ -1,0 +1,33 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  test-actions:
+    strategy:
+      matrix:
+        package:
+          - { name: "dummy-package", path: "./tests/dummy-package", repo: "" }
+          - { name: "phsmethods", path: "phsmethods", repo: "Public-Health-Scotland/phsmethods" }
+          - { name: "phstemplates", path: "phstemplates", repo: "Public-Health-Scotland/phstemplates" }
+          - { name: "phsopendata", path: "phsopendata", repo: "Public-Health-Scotland/phsopendata" }
+          - { name: "phsstyles", path: "phsstyles", repo: "Public-Health-Scotland/phsstyles" }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out actions
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check out package
+        if: matrix.package.repo != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.package.repo }}
+          path: ${{ matrix.package.path }}
+
+      - name: Run package checks
+        uses: ./.github/workflows/phs_package_checks.yaml
+        with:
+          working-directory: ${{ matrix.package.path }}

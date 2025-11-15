@@ -8,6 +8,10 @@ on:
         type: boolean
         default: false
         description: "Limit concurrent jobs in general and specifically limit R-CMD-check to 3 in parallel (default: false)"
+      working-directory:
+        required: false
+        type: string
+        default: "."
 
 name: phs_package_checks.yaml
 
@@ -37,6 +41,8 @@ jobs:
             });
   Style_and_document:
     uses: ./.github/workflows/phs_style_and_document.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: write
       pull-requests: write
@@ -47,6 +53,8 @@ jobs:
   R-CMD-check-core:
     needs: [Style_and_document]
     uses: ./.github/workflows/phs_R-CMD-check-core.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: read
     secrets: inherit
@@ -56,6 +64,8 @@ jobs:
   R-CMD-check-extended:
     needs: [Style_and_document]
     uses: ./.github/workflows/phs_R-CMD-check-extended.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: read
     secrets: inherit
@@ -65,6 +75,8 @@ jobs:
   R-CMD-check-no-suggests:
     needs: [R-CMD-check-core]
     uses: ./.github/workflows/phs_R-CMD-check-no-suggests.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: read
     secrets: inherit
@@ -74,6 +86,8 @@ jobs:
   test-coverage:
     needs: [R-CMD-check-core]
     uses: ./.github/workflows/phs_test_coverage.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: read
     secrets: inherit
@@ -83,6 +97,8 @@ jobs:
   pkgdown:
     needs: [Style_and_document]
     uses: ./.github/workflows/phs_pkgdown.yaml
+    with:
+      working-directory: ${{ inputs.working-directory }}
     permissions:
       contents: write
     secrets: inherit
