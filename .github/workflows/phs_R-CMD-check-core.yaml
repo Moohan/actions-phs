@@ -2,6 +2,11 @@
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        type: string
+        default: "."
 
 name: R-CMD-check-core.yaml
 
@@ -12,6 +17,9 @@ jobs:
   R-CMD-check-core:
     runs-on: ${{ matrix.config.os }}
     name: Core R-CMD-check – ${{ matrix.config.os }} (${{ matrix.config.r }})
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +44,9 @@ jobs:
         with:
           extra-packages: any::rcmdcheck
           needs: check
+          working-directory: ${{ inputs.working-directory }}
       - uses: r-lib/actions/check-r-package@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
         with:
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          working-directory: ${{ inputs.working-directory }}
