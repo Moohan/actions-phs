@@ -1,0 +1,18 @@
+# This workflow calls the reusable phs_package_checks.yaml workflow.
+# This is to ensure that any repositories that were using the old setup
+# will continue to work as expected.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  call-workflow:
+    uses: ./.github/workflows/phs_package_checks.yaml
+    with:
+      limit_parallel: false
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

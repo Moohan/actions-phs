@@ -8,14 +8,18 @@ on:
         type: boolean
         default: false
         description: "Limit concurrent jobs in general and specifically limit R-CMD-check to 3 in parallel (default: false)"
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+        description: "Token for codecov.io"
 
-name: phs_package_checks.yaml
+name: PHS Package Checks
 
 permissions:
   contents: read
   pull-requests: read
   statuses: read
-  
+
 jobs:
   # Initial job to post status
   init:
@@ -36,50 +40,142 @@ jobs:
               context: 'PHS Package Checks'
             });
   Style_and_document:
-    uses: ./.github/workflows/phs_style_and_document.yaml
+    name: "Automatically style and document the code"
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/r-ver
     permissions:
       contents: write
       pull-requests: write
-    secrets: inherit
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
+    steps:
+      - name: Install git
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
+      - name: Mark workspace as safe for Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Checkout repo
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+      - name: Style and Document
+        uses: ./style-and-document
+
   R-CMD-check-core:
     needs: [Style_and_document]
-    uses: ./.github/workflows/phs_R-CMD-check-core.yaml
+    name: Core R-CMD-check – ubuntu-latest (${{ matrix.r }})
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ (matrix.r == 'release' && 'rocker/r-ver:latest') || (matrix.r == 'devel' && 'rocker/r-ver:devel') || format('rocker/r-ver:{0}', matrix.r) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        r:
+          - release
+          - '4.4.2'
+          - '4.5.1'
     permissions:
       contents: read
-    secrets: inherit
     concurrency:
       group: ${{ inputs.limit_parallel == false && format('r-cmd-check-{0}-{1}', github.workflow, github.run_id) || 'phs-core-check-queue' }}
       cancel-in-progress: false
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - name: Install git in container
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Core R CMD Check
+        uses: ./R-CMD-check-core
+
   R-CMD-check-extended:
     needs: [R-CMD-check-core]
-    uses: ./.github/workflows/phs_R-CMD-check-extended.yaml
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ${{ matrix.config.os }}
+    name: Extended R-CMD-check – ${{ matrix.config.os }} (${{ matrix.config.r }})
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: windows-latest, r: '4.1.1'} # PHS RStudio Desktop install
+          - {os: windows-latest, r: 'release'}
+          - {os: windows-latest, r: 'devel', http-user-agent: 'release'}
+          - {os: macos-latest, r: 'release'}
+          - {os: ubuntu-latest, r: 'devel', http-user-agent: 'release'}
+          - {os: ubuntu-latest, r: 'oldrel-1'}
+          - {os: ubuntu-latest, r: 'oldrel-2'}
     permissions:
       contents: read
-    secrets: inherit
     concurrency:
       group: ${{ inputs.limit_parallel == false && format('r-cmd-check-{0}-{1}', github.workflow, github.run_id) || 'package-checks-queue' }}
       cancel-in-progress: false
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Extended R CMD Check
+        uses: ./R-CMD-check-extended
+        with:
+          r-version: ${{ matrix.config.r }}
+          http-user-agent: ${{ matrix.config.http-user-agent }}
+
   test-coverage:
     needs: [R-CMD-check-core]
-    uses: ./.github/workflows/phs_test_coverage.yaml
+    name: "Report on test coverage"
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/r-ver
     permissions:
       contents: read
-    secrets: inherit
     concurrency:
       group: ${{ inputs.limit_parallel == false && format('test-coverage-{0}-{1}', github.workflow, github.run_id) || 'package-checks-queue' }}
       cancel-in-progress: false
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Install required system packages
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git curl gpg
+      - name: Checkout repo
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Test Coverage
+        uses: ./test-coverage
+        with:
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
   pkgdown:
     needs: [Style_and_document]
-    uses: ./.github/workflows/phs_pkgdown.yaml
+    name: "Build and deploy the pkgdown site"
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/r-ver
     permissions:
       contents: write
-    secrets: inherit
-# Final job to update status
+    concurrency:
+      group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Install git in container
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
+      - name: Checkout repo
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Pkgdown
+        uses: ./pkgdown
+
   finalize:
-    needs: [Style_and_document, R-CMD-check-core, test-coverage, pkgdown]
+    needs: [Style_and_document, R-CMD-check-core, test-coverage, pkgdown, R-CMD-check-extended]
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -89,11 +185,21 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            const allSuccess = ${{ needs.Style_and_document.result == 'success' && 
-                                    needs.R-CMD-check-core.result == 'success' && 
-                                    needs.test-coverage.result == 'success' && 
-                                    needs.pkgdown.result == 'success' }};
-            
+            const needs_results = {
+              'Style and document': '${{ needs.Style_and_document.result }}',
+              'R-CMD-check-core': '${{ needs.R-CMD-check-core.result }}',
+              'test-coverage': '${{ needs.test-coverage.result }}',
+              'pkgdown': '${{ needs.pkgdown.result }}',
+              'R-CMD-check-extended': '${{ needs.R-CMD-check-extended.result }}'
+            };
+
+            const allSuccess = Object.values(needs_results).every(result => result === 'success' || result === 'skipped');
+
+            for (const [job, result] of Object.entries(needs_results)) {
+              console.log(`${job} result: ${result}`);
+            }
+            console.log(`All success: ${allSuccess}`);
+
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,

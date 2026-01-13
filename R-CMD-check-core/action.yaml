@@ -1,0 +1,14 @@
+name: 'Core R CMD Check'
+description: 'Runs the core set of R CMD checks for a package.'
+runs:
+  using: "composite"
+  steps:
+    - uses: r-lib/actions/setup-pandoc@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
+    - uses: r-lib/actions/setup-r-dependencies@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
+      with:
+        extra-packages: any::rcmdcheck
+        needs: check
+    - uses: r-lib/actions/check-r-package@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
+      with:
+        upload-snapshots: true
+        build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
