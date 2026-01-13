@@ -1,0 +1,25 @@
+name: 'Build and Deploy Pkgdown Site'
+description: 'Builds and deploys a pkgdown site to GitHub Pages.'
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Pandoc
+      uses: r-lib/actions/setup-pandoc@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
+
+    - name: Install dependencies
+      uses: r-lib/actions/setup-r-dependencies@6f6e5bc62fba3a704f74e7ad7ef7676c5c6a2590 # v2.11.4
+      with:
+        extra-packages: any::pkgdown, local::.
+        needs: website
+
+    - name: Build site
+      run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
+      shell: Rscript {0}
+
+    - name: Deploy to GitHub pages 🚀
+      if: github.event_name != 'pull_request'
+      uses: JamesIves/github-pages-deploy-action@9d877eea73427180ae43cf98e8914934fe157a1a # v4.7.6
+      with:
+        clean: false
+        branch: gh-pages
+        folder: docs
