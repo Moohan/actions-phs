@@ -5,7 +5,7 @@ on:
 
 name: phs_test_coverage.yaml
 
-permissions: 
+permissions:
   contents: read
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git curl gpg
-    
-      - name: Checkout repo 
+
+      - name: Checkout repo
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Install R dependencies

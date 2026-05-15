@@ -15,20 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: rocker/r-ver
-      
+
     permissions:
       contents: write
       pull-requests: write
-      
+
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      
+
     steps:
       - name: Install git
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
-      
+
       - name: Mark workspace as safe for Git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
